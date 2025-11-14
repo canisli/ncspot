@@ -316,7 +316,8 @@ impl CommandManager {
             | Command::Jump(_)
             | Command::Insert(_)
             | Command::ShowRecommendations(_)
-            | Command::Sort(_, _) => Err(format!(
+            | Command::Sort(_, _)
+            | Command::ReverseOrder => Err(format!(
                 "The command \"{}\" is unsupported in this view",
                 cmd.basename()
             )),
@@ -414,6 +415,7 @@ impl CommandManager {
         kb.insert("Shift+p".into(), vec![Command::TogglePlay]);
         kb.insert("Shift+u".into(), vec![Command::UpdateLibrary]);
         kb.insert("Shift+s".into(), vec![Command::Stop]);
+        kb.insert("Shift+R".into(), vec![Command::ReverseOrder]);
         kb.insert("<".into(), vec![Command::Previous]);
         kb.insert(">".into(), vec![Command::Next]);
         kb.insert("c".into(), vec![Command::Clear]);

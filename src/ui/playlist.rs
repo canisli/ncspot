@@ -8,6 +8,7 @@ use crate::commands::CommandResult;
 use crate::library::Library;
 use crate::model::playable::Playable;
 use crate::model::playlist::Playlist;
+use crate::command::SortDirection;
 use crate::queue::Queue;
 use crate::spotify::Spotify;
 
@@ -90,6 +91,48 @@ impl ViewExt for PlaylistView {
             } else {
                 Err("Could not delete track.".to_string())
             };
+        }
+
+        if let Command::ReverseOrder = cmd {
+            // If the playlist has a persisted sort order, flip its direction and re-sort.
+            if let Some(order) = self
+                .library
+                .cfg
+                .state()
+                .playlist_orders
+                .get(&self.playlist.id)
+                .cloned()
+            {
+                let new_direction = match order.direction {
+                    SortDirection::Ascending => SortDirection::Descending,
+                    SortDirection::Descending => SortDirection::Ascending,
+                };
+
+                self.library.cfg.with_state_mut(|state| {
+                    let updated = crate::config::SortingOrder {
+                        key: order.key.clone(),
+                        direction: new_direction.clone(),
+                    };
+                    state
+                        .playlist_orders
+                        .insert(self.playlist.id.clone(), updated);
+                });
+
+                self.playlist.sort(&order.key, &new_direction);
+            } else {
+                // No persisted sort: just reverse the in-memory track list.
+                if let Some(tracks) = self.playlist.tracks.as_mut() {
+                    tracks.reverse();
+                }
+            }
+
+            let tracks = self.playlist.tracks.as_ref().unwrap_or(&Vec::new()).clone();
+            self.list = ListView::new(
+                Arc::new(RwLock::new(tracks)),
+                self.queue.clone(),
+                self.library.clone(),
+            );
+            return Ok(CommandResult::Consumed(None));
         }
 
         if let Command::Sort(key, direction) = cmd {

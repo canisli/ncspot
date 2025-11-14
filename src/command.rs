@@ -118,6 +118,7 @@ pub enum Command {
     Quit,
     TogglePlay,
     Stop,
+    ReverseOrder,
     Previous,
     Next,
     Clear,
@@ -221,7 +222,8 @@ impl fmt::Display for Command {
             | Self::Noop
             | Self::Logout
             | Self::Reconnect
-            | Self::Redraw => vec![],
+            | Self::Redraw
+            | Self::ReverseOrder => vec![],
         };
         repr_tokens.append(&mut extras_args);
         write!(f, "{}", repr_tokens.join(" "))
@@ -245,6 +247,7 @@ impl Command {
             Self::SaveCurrent => "save current",
             Self::SaveQueue => "save queue",
             Self::Add => "add",
+            Self::ReverseOrder => "reverse",
             Self::AddCurrent => "add current",
             Self::Delete => "delete",
             Self::Focus(_) => "focus",
@@ -396,6 +399,7 @@ pub fn parse(input: &str) -> Result<Vec<Command>, CommandParseError> {
                 "quit" => Command::Quit,
                 "playpause" => Command::TogglePlay,
                 "stop" => Command::Stop,
+                "reverse" => Command::ReverseOrder,
                 "previous" => Command::Previous,
                 "next" => Command::Next,
                 "clear" => Command::Clear,
