@@ -385,9 +385,13 @@ impl<I: ListItem + Clone> View for ListView<I> {
                 let right = item.display_right(&self.library);
                 let draw_center = !center.is_empty();
 
-                // draw left string
+                // Fill the entire row with background color first
                 printer.with_color(style, |printer| {
                     printer.print_hline((0, 0), printer.size.x, " ");
+                });
+
+                // draw left string
+                printer.with_color(style, |printer| {
                     printer.print((0, 0), &left);
                 });
 
