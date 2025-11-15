@@ -275,6 +275,12 @@ impl Config {
         *self.values.write().unwrap() = cfg;
         Ok(())
     }
+
+    /// Update the backend device in the configuration.
+    pub fn set_backend_device(&self, device: Option<String>) {
+        let mut values = self.values.write().unwrap();
+        values.backend_device = device;
+    }
 }
 
 /// Parse the configuration file with name `filename` at the configuration base path.

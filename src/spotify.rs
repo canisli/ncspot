@@ -106,6 +106,19 @@ impl Spotify {
         &self,
         user_tx: Option<oneshot::Sender<String>>,
     ) -> Result<(), Box<dyn Error>> {
+        // Shut down the old worker if it exists
+        {
+            let mut channel = self.channel.write().unwrap();
+            if let Some(old_tx) = channel.take() {
+                debug!("Shutting down existing worker before starting new one");
+                // Send shutdown and immediately clear the channel so old worker knows to exit
+                let _ = old_tx.send(WorkerCommand::Shutdown);
+            }
+        }
+        
+        // Give the old worker a moment to shut down
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        
         let (tx, rx) = mpsc::unbounded_channel();
         *self.channel.write().unwrap() = Some(tx);
         let worker_channel = self.channel.clone();
@@ -274,9 +287,19 @@ impl Spotify {
         debug!("worker thread ready.");
         worker.run_loop().await;
 
-        error!("worker thread died, requesting restart");
-        *worker_channel.write().unwrap() = None;
-        events.send(Event::SessionDied)
+        // Check if the channel was already replaced (meaning we were intentionally shut down)
+        let channel_was_replaced = {
+            let channel = worker_channel.read().unwrap();
+            channel.is_none() || channel.as_ref().map(|tx| tx.is_closed()).unwrap_or(true)
+        };
+        
+        if !channel_was_replaced {
+            error!("worker thread died unexpectedly, requesting restart");
+            *worker_channel.write().unwrap() = None;
+            events.send(Event::SessionDied);
+        } else {
+            debug!("worker thread shut down gracefully");
+        }
     }
 
     /// Get the current playback status of the [Player].

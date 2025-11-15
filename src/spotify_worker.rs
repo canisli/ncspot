@@ -139,10 +139,16 @@ impl Worker {
                         }
                     }
                     Some(WorkerCommand::Shutdown) => {
+                        debug!("Received shutdown command, stopping player and session");
                         self.player.stop();
                         self.session.shutdown();
+                        // Exit the loop to terminate the worker
+                        break;
                     }
-                    None => info!("empty stream")
+                    None => {
+                        debug!("Command channel closed, worker shutting down");
+                        break;
+                    }
                 },
                 event = self.player_events.next() => match event {
                     Some(LibrespotPlayerEvent::Playing {

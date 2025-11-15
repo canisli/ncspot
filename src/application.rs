@@ -67,6 +67,8 @@ pub struct Application {
     spotify: Spotify,
     /// Internally shared
     event_manager: EventManager,
+    /// Configuration
+    cfg: Arc<Config>,
     /// An IPC implementation using the D-Bus MPRIS protocol, used to control and inspect ncspot.
     #[cfg(unix)]
     ipc: Option<IpcSocket>,
@@ -186,6 +188,40 @@ impl Application {
 
         cursive.set_user_data(Rc::new(UserDataInner { cmd: cmd_manager }));
 
+        // Start macOS audio device monitoring if on macOS
+        // Do this asynchronously to avoid blocking startup if CoreAudio has issues
+        #[cfg(target_os = "macos")]
+        {
+            use crate::macos_audio;
+            use tokio::sync::mpsc as tokio_mpsc;
+            let (device_tx, mut device_rx) = tokio_mpsc::unbounded_channel();
+            let event_manager_clone = event_manager.clone();
+
+            // Spawn task to handle device change notifications first
+            ASYNC_RUNTIME.get().unwrap().spawn(async move {
+                while let Some(device_name) = device_rx.recv().await {
+                    info!("Audio device changed, sending event");
+                    event_manager_clone.send(Event::AudioDeviceChanged(device_name));
+                }
+            });
+
+            // Start the monitor in a separate task to avoid blocking
+            let device_tx_clone = device_tx.clone();
+            ASYNC_RUNTIME.get().unwrap().spawn(async move {
+                // Small delay to ensure runtime is fully initialized
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                
+                match macos_audio::start_device_monitor(device_tx_clone) {
+                    Ok(()) => {
+                        info!("Started macOS audio device monitor");
+                    }
+                    Err(e) => {
+                        error!("Failed to start audio device monitor: {e}");
+                    }
+                }
+            });
+        }
+
         let search =
             ui::search::SearchView::new(event_manager.clone(), queue.clone(), library.clone());
 
@@ -226,6 +262,7 @@ impl Application {
             queue,
             spotify,
             event_manager,
+            cfg: configuration,
             #[cfg(unix)]
             ipc,
             cursive,
@@ -288,6 +325,58 @@ impl Application {
                             }
                         }
                         Err(e) => error!("Parsing error: {e}"),
+                    },
+                    #[cfg(target_os = "macos")]
+                    Event::AudioDeviceChanged(device_name) => {
+                        info!("Handling audio device change to: {}", if device_name.is_empty() { "default" } else { &device_name });
+                        
+                        // Save current track info before shutting down
+                        let status = self.spotify.get_current_status();
+                        let was_playing = matches!(status, PlayerEvent::Playing(_));
+                        let current_track = self.queue.get_current().clone();
+                        // Get current position from status or progress
+                        let current_position = match status {
+                            PlayerEvent::Playing(_) | PlayerEvent::Paused(_) => {
+                                Some(self.spotify.get_current_progress().as_millis() as u32)
+                            }
+                            _ => None,
+                        };
+                        
+                        // Pause playback first
+                        if was_playing {
+                            info!("Pausing playback due to device change");
+                            self.spotify.pause();
+                            // Give pause command time to process
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                        }
+                        
+                        // Update config with new device (or None if empty/default)
+                        let device = if device_name.is_empty() {
+                            None
+                        } else {
+                            Some(device_name)
+                        };
+                        
+                        // Update the config BEFORE starting new worker
+                        self.cfg.set_backend_device(device.clone());
+                        info!("Updated backend_device config to: {:?}", device);
+                        
+                        // Start a new worker with the new device
+                        info!("Starting new worker with audio device: {}", device.as_ref().map(|s| s.as_str()).unwrap_or("default"));
+                        if self.spotify.start_worker(None).is_err() {
+                            error!("Failed to start new worker after device change");
+                            continue;
+                        }
+                        
+                        // Reload the current track if there was one playing
+                        if let Some(track) = current_track {
+                            info!("Reloading track after device change");
+                            if let Some(pos) = current_position {
+                                self.spotify.load(&track, false, pos); // Load paused
+                            } else {
+                                self.spotify.load(&track, false, 0);
+                            }
+                        }
                     },
                 }
             }

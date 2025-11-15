@@ -78,6 +78,9 @@ url = "2.5"
 [target.'cfg(unix)'.dependencies]
 signal-hook = "0.3.18"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9"
+
 [dependencies.rspotify]
 default-features = false
 features = ["client-ureq", "ureq-native-tls"]

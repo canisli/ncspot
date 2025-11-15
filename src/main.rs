@@ -39,6 +39,9 @@ mod ipc;
 #[cfg(feature = "mpris")]
 mod mpris;
 
+#[cfg(target_os = "macos")]
+mod macos_audio;
+
 fn main() -> Result<(), String> {
     // Set a custom backtrace hook that writes the backtrace to a file instead of stdout, since
     // stdout is most likely in use by Cursive.

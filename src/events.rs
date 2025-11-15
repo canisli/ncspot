@@ -10,6 +10,8 @@ pub enum Event {
     Queue(QueueEvent),
     SessionDied,
     IpcInput(String),
+    #[cfg(target_os = "macos")]
+    AudioDeviceChanged(String),
 }
 
 /// Manager that can be used to send and receive messages across threads.
