@@ -281,7 +281,7 @@ impl View for Layout {
         if let Some(view) = self.get_top_view() {
             // back button + title
             if !self.is_current_stack_empty() {
-                printer.with_color(ColorStyle::title_secondary(), |printer| {
+                printer.with_color(ColorStyle::secondary(), |printer| {
                     printer.print((1, 0), &format!("< {screen_title}"));
                 });
             }
