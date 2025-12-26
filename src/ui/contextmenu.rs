@@ -61,10 +61,29 @@ impl ContextMenu {
         let mut list_select: SelectView<Playlist> = SelectView::new();
         let current_user_id = library.user_id.as_ref().unwrap();
 
-        for list in library.playlists.read().unwrap().iter() {
-            if current_user_id == &list.owner_id || list.collaborative {
-                list_select.add_item(list.name.clone(), list.clone());
-            }
+        // Collect eligible playlists
+        let mut eligible_playlists: Vec<Playlist> = library
+            .playlists
+            .read()
+            .unwrap()
+            .iter()
+            .filter(|list| current_user_id == &list.owner_id || list.collaborative)
+            .cloned()
+            .collect();
+
+        // Find and pin "bad playlist" to the top
+        let pinned_playlist_name = "bad playlist";
+        if let Some(pos) = eligible_playlists
+            .iter()
+            .position(|p| p.name.eq_ignore_ascii_case(pinned_playlist_name))
+        {
+            let bad_playlist = eligible_playlists.remove(pos);
+            list_select.add_item(bad_playlist.name.clone(), bad_playlist);
+        }
+
+        // Add the rest of the playlists
+        for list in eligible_playlists {
+            list_select.add_item(list.name.clone(), list);
         }
 
         list_select.set_on_submit(move |s, selected| {

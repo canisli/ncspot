@@ -7,6 +7,6 @@ if pgrep -x ncspot >/dev/null && [ -S "$SOCK" ]; then
     echo "previous" | nc -U "$SOCK"
 else
     # fallback: trigger system previous media key
-    osascript -e 'tell application "System Events" to key code 15'
+	osascript -e 'tell application "Shortcuts Events" to run shortcut "Prev"'
 fi
 

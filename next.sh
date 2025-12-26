@@ -7,6 +7,6 @@ if pgrep -x ncspot >/dev/null && [ -S "$SOCK" ]; then
     echo "next" | nc -U "$SOCK"
 else
     # fallback: trigger system Play/Pause media key
-    osascript -e 'tell application "System Events" to key code 17'
+	osascript -e 'tell application "Shortcuts Events" to run shortcut "Next"'
 fi
 

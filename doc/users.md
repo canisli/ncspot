@@ -250,6 +250,7 @@ Possible configuration values are:
 | `backend_device`                | Audio device to configure the backend                          | String                                                                                |                     |
 | `audio_cache`                   | Enable caching of audio files                                  | `true`, `false`                                                                       | `true`              |
 | `audio_cache_size`              | Maximum size of audio cache in MiB                             | Number                                                                                |                     |
+| `audio_buffer_size`             | Audio buffer size in frames (for portaudio backend)            | Number (e.g., 512, 1024, 2048)                                                        |                     |
 | `volnorm`                       | Enable volume normalization                                    | `true`, `false`                                                                       | `false`             |
 | `volnorm_pregain`               | Normalization pregain to apply in dB (if enabled)              | Number                                                                                | `0.0`               |
 | `default_keybindings`           | Enable default keybindings                                     | `true`, `false`                                                                       | `false`             |

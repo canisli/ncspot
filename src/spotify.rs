@@ -127,7 +127,7 @@ impl Spotify {
         let volume = self.volume();
         let credentials = self.credentials.clone();
         let backend_name = cfg.values().backend.clone();
-        let backend = Self::init_backend(backend_name)?;
+        let backend = Self::init_backend(backend_name, &cfg)?;
         ASYNC_RUNTIME.get().unwrap().spawn(Self::worker(
             worker_channel,
             events,
@@ -201,7 +201,7 @@ impl Spotify {
     }
 
     /// Create and initialize the requested audio backend.
-    fn init_backend(desired_backend: Option<String>) -> Result<SinkBuilder, Box<dyn Error>> {
+    fn init_backend(desired_backend: Option<String>, cfg: &config::Config) -> Result<SinkBuilder, Box<dyn Error>> {
         let backend = if let Some(name) = desired_backend {
             audio_backend::BACKENDS
                 .iter()
@@ -225,6 +225,14 @@ impl Spotify {
             unsafe { env::set_var("PULSE_PROP_stream.description", "ncurses Spotify client") };
             // TODO: Audit that the environment access only happens in single-threaded code.
             unsafe { env::set_var("PULSE_PROP_media.role", "music") };
+        } else if backend_name == "portaudio" {
+            // Configure portaudio buffer size to reduce clicking noises
+            // Use a larger default buffer size (2048 frames) to help prevent dropouts and clicking sounds
+            // This can be overridden by setting audio_buffer_size in the config file
+            let buffer_size = cfg.values().audio_buffer_size.unwrap_or(2048);
+            info!("Setting portaudio buffer size to {buffer_size} frames");
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("LIBRESPOT_PORTAUDIO_BUFFER_SIZE", buffer_size.to_string()) };
         }
 
         Ok(backend.1)

@@ -6,7 +6,49 @@ use cursive::theme::PaletteColor::*;
 use cursive::theme::*;
 use log::warn;
 
-use crate::config::ConfigTheme;
+use crate::config::{ConfigTheme, ConfigThemeConfig};
+
+#[derive(Debug, Copy, Clone)]
+enum Appearance {
+    Light,
+    Dark,
+}
+
+#[cfg(target_os = "macos")]
+fn detect_appearance() -> Appearance {
+    use std::process::Command;
+
+    // `defaults read -g AppleInterfaceStyle` exits with 0 when Dark Mode is set.
+    match Command::new("defaults")
+        .args(["read", "-g", "AppleInterfaceStyle"])
+        .output()
+    {
+        Ok(output) if output.status.success() => Appearance::Dark,
+        _ => Appearance::Light,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn detect_appearance() -> Appearance {
+    Appearance::Light
+}
+
+fn select_theme(theme_cfg: &ConfigThemeConfig) -> Option<ConfigTheme> {
+    let appearance = detect_appearance();
+
+    match appearance {
+        Appearance::Dark => theme_cfg
+            .dark
+            .clone()
+            .or_else(|| theme_cfg.light.clone())
+            .or_else(|| Some(theme_cfg.base.clone())),
+        Appearance::Light => theme_cfg
+            .light
+            .clone()
+            .or_else(|| theme_cfg.dark.clone())
+            .or_else(|| Some(theme_cfg.base.clone())),
+    }
+}
 
 /// Get the given color from the given [ConfigTheme]. The first argument is the [ConfigTheme] to get
 /// the color out of. The second argument is the name of the color to get and is an identifier. The
@@ -36,50 +78,59 @@ macro_rules! load_color {
 }
 
 /// Create a [cursive::theme::Theme] from `theme_cfg`.
-pub fn load(theme_cfg: &Option<ConfigTheme>) -> Theme {
+pub fn load(theme_cfg: &Option<ConfigThemeConfig>) -> Theme {
     let mut palette = Palette::default();
     let borders = BorderStyle::Simple;
 
-    palette[Background] = load_color!(theme_cfg, background, TerminalDefault);
-    palette[View] = load_color!(theme_cfg, background, TerminalDefault);
-    palette[Primary] = load_color!(theme_cfg, primary, TerminalDefault);
-    palette[Secondary] = load_color!(theme_cfg, secondary, Dark(Blue));
-    palette[TitlePrimary] = load_color!(theme_cfg, title, Dark(Red));
-    palette[HighlightText] = load_color!(theme_cfg, highlight, Dark(White));
-    palette[Highlight] = load_color!(theme_cfg, highlight_bg, Dark(Red));
-    palette[HighlightInactive] = load_color!(theme_cfg, highlight_inactive_bg, Dark(Blue));
-    palette.set_color("playing", load_color!(theme_cfg, playing, Dark(Blue)));
+    let selected_theme: Option<ConfigTheme> = theme_cfg.as_ref().and_then(select_theme);
+
+    palette[Background] = load_color!(&selected_theme, background, TerminalDefault);
+    palette[View] = load_color!(&selected_theme, background, TerminalDefault);
+    palette[Primary] = load_color!(&selected_theme, primary, TerminalDefault);
+    palette[Secondary] = load_color!(&selected_theme, secondary, Dark(Blue));
+    palette[TitlePrimary] = load_color!(&selected_theme, title, Dark(Red));
+    palette[HighlightText] = load_color!(&selected_theme, highlight, Dark(White));
+    palette[Highlight] = load_color!(&selected_theme, highlight_bg, Dark(Red));
+    palette[HighlightInactive] =
+        load_color!(&selected_theme, highlight_inactive_bg, Dark(Blue));
+    palette.set_color("playing", load_color!(&selected_theme, playing, Dark(Blue)));
     palette.set_color(
         "playing_selected",
-        load_color!(theme_cfg, playing_selected, Light(Blue)),
+        load_color!(&selected_theme, playing_selected, Light(Blue)),
     );
     palette.set_color(
         "playing_bg",
-        load_color!(theme_cfg, playing_bg, TerminalDefault),
+        load_color!(&selected_theme, playing_bg, TerminalDefault),
     );
-    palette.set_color("error", load_color!(theme_cfg, error, TerminalDefault));
-    palette.set_color("error_bg", load_color!(theme_cfg, error_bg, Dark(Red)));
+    palette.set_color("error", load_color!(&selected_theme, error, TerminalDefault));
+    palette.set_color("error_bg", load_color!(&selected_theme, error_bg, Dark(Red)));
     palette.set_color(
         "statusbar_progress",
-        load_color!(theme_cfg, statusbar_progress, Dark(Blue)),
+        load_color!(&selected_theme, statusbar_progress, Dark(Blue)),
     );
     palette.set_color(
         "statusbar_progress_bg",
-        load_color!(theme_cfg, statusbar_progress_bg, Light(Black)),
+        load_color!(&selected_theme, statusbar_progress_bg, Light(Black)),
     );
-    palette.set_color("statusbar", load_color!(theme_cfg, statusbar, Dark(Yellow)));
+    palette.set_color(
+        "statusbar",
+        load_color!(&selected_theme, statusbar, Dark(Yellow)),
+    );
     palette.set_color(
         "statusbar_bg",
-        load_color!(theme_cfg, statusbar_bg, TerminalDefault),
+        load_color!(&selected_theme, statusbar_bg, TerminalDefault),
     );
-    palette.set_color("cmdline", load_color!(theme_cfg, cmdline, TerminalDefault));
+    palette.set_color(
+        "cmdline",
+        load_color!(&selected_theme, cmdline, TerminalDefault),
+    );
     palette.set_color(
         "cmdline_bg",
-        load_color!(theme_cfg, cmdline_bg, TerminalDefault),
+        load_color!(&selected_theme, cmdline_bg, TerminalDefault),
     );
     palette.set_color(
         "search_match",
-        load_color!(theme_cfg, search_match, Light(Red)),
+        load_color!(&selected_theme, search_match, Light(Red)),
     );
 
     Theme {

@@ -349,11 +349,23 @@ impl Library {
             }
         }
 
-        // sort by remote order
+        // sort by remote order, but pin "bad playlist" to the top
+        let pinned_playlist_name = "bad playlist";
         self.playlists.write().unwrap().sort_by(|a, b| {
-            let a_index = list_order.iter().position(|x| x == &a.id);
-            let b_index = list_order.iter().position(|x| x == &b.id);
-            a_index.cmp(&b_index)
+            let a_is_bad = a.name.eq_ignore_ascii_case(pinned_playlist_name);
+            let b_is_bad = b.name.eq_ignore_ascii_case(pinned_playlist_name);
+            
+            // If one is "bad playlist" and the other isn't, prioritize "bad playlist"
+            match (a_is_bad, b_is_bad) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => {
+                    // Otherwise sort by remote order
+                    let a_index = list_order.iter().position(|x| x == &a.id);
+                    let b_index = list_order.iter().position(|x| x == &b.id);
+                    a_index.cmp(&b_index)
+                }
+            }
         });
 
         // trigger redraw

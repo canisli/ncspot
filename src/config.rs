@@ -79,11 +79,12 @@ pub struct ConfigValues {
     pub initial_screen: Option<String>,
     pub default_keybindings: Option<bool>,
     pub keybindings: Option<HashMap<String, String>>,
-    pub theme: Option<ConfigTheme>,
+    pub theme: Option<ConfigThemeConfig>,
     pub use_nerdfont: Option<bool>,
     pub flip_status_indicators: Option<bool>,
     pub audio_cache: Option<bool>,
     pub audio_cache_size: Option<u32>,
+    pub audio_buffer_size: Option<u32>,
     pub backend: Option<String>,
     pub backend_device: Option<String>,
     pub volnorm: Option<bool>,
@@ -125,6 +126,18 @@ pub struct ConfigTheme {
     pub cmdline: Option<String>,
     pub cmdline_bg: Option<String>,
     pub search_match: Option<String>,
+}
+
+/// A theme definition that supports either a single palette or light/dark variants.
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct ConfigThemeConfig {
+    /// Colors provided directly under `[theme]` (legacy single theme).
+    #[serde(flatten)]
+    pub base: ConfigTheme,
+    /// Theme used when the OS is in light appearance.
+    pub light: Option<ConfigTheme>,
+    /// Theme used when the OS is in dark appearance.
+    pub dark: Option<ConfigTheme>,
 }
 
 /// The ordering that is used when representing a playlist.

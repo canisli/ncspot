@@ -1,0 +1,31 @@
+--- a/src/audio_backend/portaudio.rs
++++ b/src/audio_backend/portaudio.rs
+@@ -97,6 +97,15 @@ impl<'a> Open for PortAudioSink<'a> {
+     fn start(&mut self) -> SinkResult<()> {
+         macro_rules! start_sink {
+             (ref mut $stream: ident, ref $parameters: ident) => {{
++                // Check for buffer size configuration via environment variable
++                let frames_per_buffer = std::env::var("LIBRESPOT_PORTAUDIO_BUFFER_SIZE")
++                    .ok()
++                    .and_then(|s| s.parse::<u32>().ok())
++                    .unwrap_or(FRAMES_PER_BUFFER_UNSPECIFIED);
++                
+                 if $stream.is_none() {
+                     *$stream = Some(
+                         Stream::open(
+                             None,
+                             Some(*$parameters),
+                             SAMPLE_RATE as f64,
+-                            FRAMES_PER_BUFFER_UNSPECIFIED,
++                            frames_per_buffer,
+                             StreamFlags::DITHER_OFF, // no need to dither twice; use librespot dithering instead
+                             None,
+                         )
+                         .unwrap(),
+                     );
+                 }
+                 $stream.as_mut().unwrap().start().unwrap()
+             }};
+         }
+
+
