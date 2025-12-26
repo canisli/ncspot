@@ -8,14 +8,14 @@ use log::warn;
 
 use crate::config::{ConfigTheme, ConfigThemeConfig};
 
-#[derive(Debug, Copy, Clone)]
-enum Appearance {
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) enum Appearance {
     Light,
     Dark,
 }
 
 #[cfg(target_os = "macos")]
-fn detect_appearance() -> Appearance {
+pub(crate) fn detect_appearance() -> Appearance {
     use std::process::Command;
 
     // `defaults read -g AppleInterfaceStyle` exits with 0 when Dark Mode is set.

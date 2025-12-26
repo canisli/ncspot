@@ -18,6 +18,7 @@ use crate::library::Library;
 use crate::queue::Queue;
 use crate::spotify::{PlayerEvent, Spotify};
 use crate::ui::create_cursive;
+use crate::theme;
 use crate::{authentication, ui, utils};
 use crate::{command, queue, spotify};
 
@@ -105,6 +106,28 @@ impl Application {
         let mut cursive = create_cursive().map_err(|error| error.to_string())?;
 
         cursive.set_theme(theme.clone());
+        #[cfg(target_os = "macos")]
+        {
+            use tokio::time::Duration;
+
+            let cb_sink = cursive.cb_sink().clone();
+            let theme_cfg = configuration.values().theme.clone();
+            // Periodically check system appearance and update theme if it changes.
+            ASYNC_RUNTIME.get().unwrap().spawn(async move {
+                let mut last = theme::detect_appearance();
+                loop {
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    let current = theme::detect_appearance();
+                    if current != last {
+                        last = current;
+                        let theme_cfg = theme_cfg.clone();
+                        let _ = cb_sink.send(Box::new(move |s| {
+                            s.set_theme(theme::load(&theme_cfg));
+                        }));
+                    }
+                }
+            });
+        }
 
         #[cfg(all(unix, feature = "pancurses_backend"))]
         cursive.add_global_callback(cursive::event::Event::CtrlChar('z'), |_s| unsafe {
