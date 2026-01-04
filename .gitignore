@@ -12,6 +12,7 @@
 *.log
 
 tags
+client.txt
 
 # Ignore generated resources
 *.1

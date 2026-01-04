@@ -102,6 +102,11 @@ pub struct ConfigValues {
     pub library_tabs: Option<Vec<LibraryTab>>,
     pub hide_display_names: Option<bool>,
     pub ap_port: Option<u16>,
+    /// Custom Spotify client ID. If not set, uses the default ncspot client ID.
+    pub client_id: Option<String>,
+    /// Custom Spotify client secret. When provided along with client_id, uses
+    /// Authorization Code flow instead of PKCE.
+    pub client_secret: Option<String>,
 }
 
 /// The ncspot theme.
