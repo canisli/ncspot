@@ -79,6 +79,26 @@ impl ViewExt for PlaylistView {
     }
 
     fn on_command(&mut self, s: &mut Cursive, cmd: &Command) -> Result<CommandResult, String> {
+        if let Command::UpdateLibrary = cmd {
+            // Force re-fetch tracks from Spotify for the current playlist view.
+            self.playlist.tracks = None;
+            self.playlist.load_tracks(&self.spotify);
+
+            if let Some(order) = self.library.cfg.state().playlist_orders.get(&self.playlist.id) {
+                self.playlist.sort(&order.key, &order.direction);
+            }
+
+            let tracks = self.playlist.tracks.as_ref().unwrap_or(&Vec::new()).clone();
+            self.list = ListView::new(
+                Arc::new(RwLock::new(tracks)),
+                self.queue.clone(),
+                self.library.clone(),
+            );
+
+            // Return Ignored so the default handler also runs library.update_library()
+            return Ok(CommandResult::Ignored);
+        }
+
         if let Command::Delete = cmd {
             let pos = self.list.get_selected_index();
 
