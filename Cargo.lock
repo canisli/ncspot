@@ -2370,7 +2370,7 @@ dependencies = [
  "arboard",
  "chrono",
  "clap",
- "core-foundation",
+ "core-foundation 0.9.4",
  "crossbeam-channel",
  "cursive",
  "fern",
