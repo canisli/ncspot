@@ -328,13 +328,23 @@ impl Queue {
     /// Toggle the playback. If playback is currently stopped, this will either
     /// play the next song if one is available, or restart from the start.
     pub fn toggleplayback(&self) {
-        match self.spotify.get_current_status() {
+        let status = self.spotify.get_current_status();
+        let current_index = self.get_current_index();
+        debug!("toggleplayback() called, status: {:?}, current index: {:?}", status, current_index);
+
+        match status {
             PlayerEvent::Playing(_) | PlayerEvent::Paused(_) => {
                 self.spotify.toggleplayback();
             }
             PlayerEvent::Stopped => match self.next_index() {
-                Some(_) => self.next(false),
-                None => self.play(0, false, false),
+                Some(index) => {
+                    info!("toggleplayback: stopped but current_track is set to {:?}, playing next track at index {}", current_index, index);
+                    self.next(false)
+                },
+                None => {
+                    info!("toggleplayback: stopped and no next track, restarting from 0");
+                    self.play(0, false, false)
+                },
             },
             _ => (),
         }

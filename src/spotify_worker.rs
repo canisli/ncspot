@@ -68,7 +68,7 @@ impl Worker {
 
         loop {
             if self.session.is_invalid() {
-                info!("Librespot session invalidated, terminating worker");
+                error!("Librespot session invalidated, terminating worker");
                 self.events.send(Event::Player(PlayerEvent::Stopped));
                 break;
             }
@@ -170,8 +170,12 @@ impl Worker {
                         };
                         self.events.send(Event::Player(event));
                     }
+                    Some(LibrespotPlayerEvent::Unavailable { track_id, .. }) => {
+                        error!("Track unavailable: {track_id}");
+                        self.events.send(Event::Player(PlayerEvent::Stopped));
+                    }
                     Some(event) => {
-                        debug!("Unhandled player event: {event:?}");
+                        info!("Unhandled player event: {event:?}");
                     }
                     None => {
                         warn!("Librespot player event channel died, terminating worker");
