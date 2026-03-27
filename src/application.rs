@@ -57,6 +57,13 @@ pub struct UserDataInner {
     pub cmd: CommandManager,
 }
 
+#[derive(Clone)]
+struct PlaybackRecovery {
+    track: crate::model::playable::Playable,
+    position_ms: u32,
+    should_resume: bool,
+}
+
 /// The global Tokio runtime for running asynchronous tasks.
 pub static ASYNC_RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
 
@@ -70,6 +77,8 @@ pub struct Application {
     event_manager: EventManager,
     /// Configuration
     cfg: Arc<Config>,
+    /// Playback state that can be restored after an unexpected worker restart.
+    pending_recovery: Option<PlaybackRecovery>,
     /// An IPC implementation using the D-Bus MPRIS protocol, used to control and inspect ncspot.
     #[cfg(unix)]
     ipc: Option<IpcSocket>,
@@ -78,6 +87,51 @@ pub struct Application {
 }
 
 impl Application {
+    fn capture_playback_recovery(&mut self) {
+        let previous_status = self.spotify.get_current_status();
+        let Some(track) = self.queue.get_current() else {
+            self.pending_recovery = None;
+            return;
+        };
+
+        let should_resume = matches!(previous_status, PlayerEvent::Playing(_));
+        let should_restore = should_resume || matches!(previous_status, PlayerEvent::Paused(_));
+        if !should_restore {
+            self.pending_recovery = None;
+            return;
+        }
+
+        let position_ms = self
+            .spotify
+            .get_current_progress()
+            .as_millis()
+            .min(u32::MAX as u128) as u32;
+
+        info!(
+            "Captured playback recovery for {} at {} ms (resume: {})",
+            track, position_ms, should_resume
+        );
+        self.pending_recovery = Some(PlaybackRecovery {
+            track,
+            position_ms,
+            should_resume,
+        });
+    }
+
+    fn restore_playback_recovery(&mut self) {
+        let Some(recovery) = self.pending_recovery.take() else {
+            return;
+        };
+
+        info!(
+            "Restoring playback after worker restart for {} at {} ms (resume: {})",
+            recovery.track, recovery.position_ms, recovery.should_resume
+        );
+        self.spotify
+            .load(&recovery.track, recovery.should_resume, recovery.position_ms);
+        self.spotify.update_track();
+    }
+
     /// Create a new ncspot application.
     ///
     /// # Arguments
@@ -290,6 +344,7 @@ impl Application {
             spotify,
             event_manager,
             cfg: configuration,
+            pending_recovery: None,
             #[cfg(unix)]
             ipc,
             cursive,
@@ -314,10 +369,18 @@ impl Application {
                     }
                 }
             }
-            for event in self.event_manager.msg_iter() {
+            let pending_events: Vec<_> = self.event_manager.msg_iter().collect();
+            for event in pending_events {
                 match event {
                     Event::Player(state) => {
                         trace!("event received: {state:?}");
+                        if state == PlayerEvent::Stopped {
+                            self.capture_playback_recovery();
+                        } else if matches!(state, PlayerEvent::Playing(_) | PlayerEvent::Paused(_)) {
+                            self.pending_recovery = None;
+                        } else if state == PlayerEvent::FinishedTrack {
+                            self.pending_recovery = None;
+                        }
                         self.spotify.update_status(state.clone());
 
                         #[cfg(unix)]
@@ -340,6 +403,8 @@ impl Application {
                                 .cloned()
                                 .expect("user data should be set");
                             data.cmd.handle(&mut self.cursive, Command::Quit);
+                        } else {
+                            self.restore_playback_recovery();
                         };
                     }
                     Event::IpcInput(input) => match command::parse(&input) {
